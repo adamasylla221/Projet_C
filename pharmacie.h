@@ -1,82 +1,87 @@
+// ===== pharmacie.h (corrigé) =====
 #ifndef PHARMACIE_H
 #define PHARMACIE_H
-typedef struct{
-    char code[5];
-    char designation[50];
+
+#include <stdio.h>
+
+// ===== ENUM ROLES =====
+typedef enum {ADMIN, PHARMACIEN} Role;
+
+// ===== STRUCTURES =====
+typedef struct {
+    char code[10];
+    char designation[30];
     int quantite;
     float prix;
-    char categorie_Produit[20];
-    char date_peremption[12];
-
+    char categorie_Produit[30];
+    char date_peremption[15];
 } Produit;
 
+typedef struct {
+    int id;
+    char libelle[30];
+} Categorie;
 
- typedef struct{
-     int id;
-     char libelle[30];
- } Categorie;
+typedef struct {
+    char login[30];
+    char password[30];
+    int actif; // 1 = actif, 0 = bloqué
+    Role role;
+    char nom[30];
+    char prenom[30];
+    char telephone[20];
+} Utilisateur;
 
- typedef enum{
-     admin,
-     pharmacien
- } Role;
-
-
-
- typedef struct{
-     char login[6];
-     char password[20];
-     char nom[20],prenom[30],telephone[12];
-     Role role; //choix au niveau du role soit admin ou pharmacien
-     int actif;
- } Utilisateur;
-
- typedef struct {
-    char numero[15];
-    char date[10];
-    char loginPharmacien[10];
-    Produit produits[100];
-    int quantites[100];
-    int nbProduits;
-    float total;
+typedef struct {
+    int idVente;
+    char codeProduit[10];
+    int quantite;
+    float prixTotal;
+    char dateVente[20];
 } Vente;
 
-void menu();
-//produits
-<<<<<<< HEAD
-void saisitproduit();
-=======
->>>>>>> f56135b11b1caa95f49a5faafca0ce56c2312c3c
-void infoProduit();
+
+void menuProduits();
+void menuCategories();
+void menuUtilisateurs();
+void menuVentesFactures();
+void venteProduits(Utilisateur user);
+void genererFacture();
+void sauvegarderUtilisateurs();
+
+
+
+// ===== FONCTIONS PRODUITS =====
 void ajouterProduit();
+void afficherProduits();
+void recherchecode();
 void modifierProduit();
 void supprimerProduit();
-void recherchecode();
 void verification_stock();
-<<<<<<< HEAD
-void activerCouleurConsole();
- void afficherProduits();
-=======
 
->>>>>>> f56135b11b1caa95f49a5faafca0ce56c2312c3c
-//categories
-void infoCategorie();
+// ===== FONCTIONS CATEGORIES =====
 void ajouterCategorie();
+void afficherCategories();
+void modifierCategorie();
 void supprimerCategorie();
 
-//Utilisateur
-void infoUtilisateur();
-void creerUtilisateur();
+// ===== FONCTIONS UTILISATEURS =====
+void ajouterUtilisateur();
+void creerPharmacien();
+int connexionUtilisateur(Utilisateur *user);
+void afficherUtilisateurs();
 void bloquerUtilisateur();
 void debloquerUtilisateur();
+void changerMotDePasse(Utilisateur *user);
 
-//Vente et facture
-void infoVente();
-void generfacture();
-void imprimfacture();
-void consultstock();
-<<<<<<< HEAD
-void verification(FILE *tmp);
-=======
->>>>>>> f56135b11b1caa95f49a5faafca0ce56c2312c3c
+void menuAdmin(Utilisateur user);
+void menuPharmacien(Utilisateur user);
+void infoUtilisateurConnecte(Utilisateur *user);
+
+// ===== FONCTIONS VENTES ET FACTURES =====
+void enregistrerVente(Utilisateur user);
+void afficherFactures();
+void afficherFactureParDate();
+void etatJournalier();
+
 #endif

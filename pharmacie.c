@@ -1,389 +1,690 @@
-<<<<<<< HEAD
+// ===== pharmacie.c =====
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <sys/stat.h> // pour mkdir sous Linux/Mac
+#include <direct.h>   // pour mkdir sous Windows
+ // mkdir sous Linux
 #include "pharmacie.h"
-#include <stdlib.h>
-#include "time.h"
+#include <dirent.h>  // Pour opendir, readdir, closedir
+#include <ctype.h>   // Pour isalnum
 
-
-
-void infoVente(Vente *V,Produit produits[],int nbProduitsDispo,const char *loginPharmacien) {
-    int choix;
-    V->nbProduits = 0;
-    V->total = 0.0f;
-   strncpy(V->loginPharmacien, loginPharmacien, sizeof(V->loginPharmacien) - 1);
-   V->loginPharmacien[sizeof(V->loginPharmacien) - 1] = '\0';
-
-
-    // Générer un numéro unique pour la vente AAAAMMJJHHMMSS
-     time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
-    sprintf(V->numero, "%04d%02d%02d%02d%02d%02d",
-            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
-            tm.tm_hour, tm.tm_min, tm.tm_sec);
-    sprintf(V->date, "%02d/%02d/%04d", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900);
-
-
-    do {
-        char codeProduit[10];
-        int quantiteDemandee;
-        int trouve = 0;
-
-        printf("\n\033[1;34m--- Liste des produits disponibles ---\033[0m\n");
-        for (int i = 0; i < nbProduitsDispo; i++) {
-            printf("[%s] %s | Prix: %.2f FCFA | Stock: %d\n",
-                   produits[i].code, produits[i].designation,
-                   produits[i].prix, produits[i].quantite);
-        }
-
-        printf("\nEntrez le code du produit : ");
-        scanf("%s", codeProduit);
-
-        for (int i = 0; i < nbProduitsDispo; i++) {
-            if (strcmp(produits[i].code, codeProduit) == 0) {
-                trouve = 1;
-                printf("Quantite a vendre : ");
-                scanf("%d", &quantiteDemandee);
-
-                if (quantiteDemandee <= produits[i].quantite && quantiteDemandee > 0) {
-                    // Ajouter le produit à la vente
-                    V->produits[V->nbProduits] = produits[i];
-                    V->quantites[V->nbProduits] = quantiteDemandee;
-                    V->total += produits[i].prix * quantiteDemandee;
-
-                    // Mettre à jour le stock
-                    produits[i].quantite -= quantiteDemandee;
-
-                    V->nbProduits++;
-                    printf("\033[1;32m[✓] Vente enregistree en vert).\033[0m\n");
-                } else {
-                    printf("\033[1;31m[ERREUR] Stock insuffisant en rouge.\033[0m\n");
-                }
-                break;
-            }
-        }
-
-        if (!trouve) {
-            printf("\033[1;31m[ERREUR] Produit introuvable.\033[0m\n");
-        }
-
-        printf("Ajouter un autre produit ? (1=Oui / 0=Non) : ");
-        scanf("%d", &choix);
-
-    } while (choix == 1);
-
-    printf("\n\033[1;32m[✓] Vente enregistree. Total : %.2f FCFA\033[0m\n", V->total);
-    printf("Numero de vente : %s\n", V->numero);
-}
-
-
-void generfacture(Vente V) {
-    #define FACTURE_PATH "./BILLS/"
-    char nomFichier[100];
-    snprintf(nomFichier, sizeof(nomFichier), "%sRECU_%s_%s.txt", FACTURE_PATH, V.numero, V.loginPharmacien);
-
-    FILE *f = fopen(nomFichier, "w");
-    if (f == NULL) {
-        printf("\033[1;31m[ERREUR] Impossible de creer la facture !\033[0m\n");
-        return;
-    }
-
-    fprintf(f, "════════════════════════════════════════════\n");
-    fprintf(f, "           PHARMACIE SUNUPHARMA              \n");
-    fprintf(f, "════════════════════════════════════════════\n");
-    fprintf(f, "Numero Facture : %s\n", V.numero);
-    fprintf(f, "Date           : %s\n", V.date);
-    fprintf(f, "Pharmacien     : %s\n", V.loginPharmacien);
-    fprintf(f, "--------------------------------------------\n");
-    fprintf(f, " Code   | Produit           | Qte | Total    \n");
-    fprintf(f, "--------------------------------------------\n");
-
-    for (int i = 0; i < V.nbProduits; i++) {
-        float totalProduit = V.produits[i].prix * V.quantites[i];
-        fprintf(f, " %-6s | %-17s | %-3d | %-8.2f\n",
-                V.produits[i].code,
-                V.produits[i].designation,
-                V.quantites[i],
-                totalProduit);
-    }
-
-    fprintf(f, "--------------------------------------------\n");
-    fprintf(f, "TOTAL A PAYER : %.2f FCFA\n", V.total);
-    fprintf(f, "════════════════════════════════════════════\n");
-
-    fclose(f);
-    printf("\033[1;32m[✓] Facture generee : %s\033[0m\n", nomFichier);
-}
-
-void imprimfacture(Vente V) {
-    generfacture(V);
-
-}
-
-#define SEUIL_STOCK_CRITIQUE 10
-
-int dateEstExpire(const char *date_peremption) {
-    int mois, annee;
-    int date_expire_int, date_auj_int;
-
-    // Lire la date au format MM/YYYY
-    if (sscanf(date_peremption, "%2d/%4d", &mois, &annee) != 2) {
-        printf("Format de date invalide : %s\n", date_peremption);
-        return 0; // Considéré non périmé par défaut
-    }
-
-    // Représenter la date comme AAAAMM
-    date_expire_int = annee * 100 + mois;
-
-    // Date actuelle
-    time_t t = time(NULL);
-    struct tm today = *localtime(&t);
-    date_auj_int = (today.tm_year + 1900) * 100 + (today.tm_mon + 1);
-
-    // Si la date de péremption est plus petite que aujourd'hui
-    return date_expire_int < date_auj_int;
-}
-
-
-void consultstock(Produit produits[],int nbProduits){
-     printf("\n\033[1;33m--- Consultation du stock ---\033[0m\n");
-    printf("Code   | Designation                | Stock | Date peremption | Etat\n");
-    printf("---------------------------------------------------------------------\n");
-
-    for (int i = 0; i < nbProduits; i++) {
-        const char *etatStock = "";
-        if (produits[i].quantite <= SEUIL_STOCK_CRITIQUE) {
-            etatStock = "[Stock critique]";
-        }
-
-        const char *etatDate = "";
-        if (dateEstExpire(produits[i].date_peremption)) {
-            etatDate = "\033[1;31m[Perime]\033[0m";
-        }
-
-        printf("%-6s | %-25s | %-5d | %-15s | %s %s\n",
-               produits[i].code,
-               produits[i].designation,
-               produits[i].quantite,
-               produits[i].date_peremption,
-               etatStock,
-               etatDate);
-    }
-    printf("---------------------------------------------------------------------\n");
-}
-
-=======
-<<<<<<< HEAD
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+// ANSI couleurs
 #define RED     "\033[1;31m"
 #define GREEN   "\033[1;32m"
 #define YELLOW  "\033[1;33m"
-#define CYAN    "\033[1;36m"
-#define MAGENTA "\033[1;35m"
+#define BLUE    "\033[1;34m"
 #define RESET   "\033[0m"
-typedef struct {
-    char code[10];
-    char designation[50];
-    char categorie_Produit[30];
-    char date_peremption[11]; // format : MM/YYYY
-    int quantite;
-    float prix;
-} Produit;
 
-void initialiserFichier() {
-    FILE *f = fopen("product.dat", "ab");
-    if (f == NULL) {
-        printf("Erreur lors de la création de product.dat\n");
-        exit(1);
-    }
-    fclose(f);
+#define MAX_UTILISATEURS 100
+#define MAX_PRODUITS_VENTE 50
+
+// Variables globales utilisateurs (en mémoire)
+Utilisateur utilisateurs[MAX_UTILISATEURS];
+int nbUtilisateurs = 0;
+
+// Fonctions utilitaires
+
+void creerDossierBills() {
+#ifdef _WIN32
+    _mkdir("BILLS");
+#else
+    mkdir("BILLS", 0777);
+#endif
 }
 
+// Validation code produit 5 caractères alphanumériques
+int validerCodeProduit(const char *code) {
+    if (strlen(code) != 5) return 0;
+    for (int i = 0; i < 5; i++) {
+        if (!((code[i] >= 'A' && code[i] <= 'Z') || (code[i] >= '0' && code[i] <= '9')))
+            return 0;
+    }
+    return 1;
+}
+
+// Validation login 5 lettres majuscules
+int validerLogin(const char *login) {
+    if (strlen(login) != 5) return 0;
+    for (int i = 0; i < 5; i++) {
+        if (!(login[i] >= 'A' && login[i] <= 'Z'))
+            return 0;
+    }
+    return 1;
+}
+
+// Validation date AAAA-MM-JJ simple (longueur + chiffres + tirets)
+int validerDate(const char *date) {
+    if (strlen(date) != 10) return 0;
+    for (int i = 0; i < 10; i++) {
+        if (i == 4 || i == 7) {
+            if (date[i] != '-') return 0;
+        } else {
+            if (!(date[i] >= '0' && date[i] <= '9')) return 0;
+        }
+    }
+    // TODO: Valider que date est >= date actuelle
+    return 1;
+}
+
+// ===== PRODUITS =====
 
 void ajouterProduit() {
-    Produit p;
-    FILE *f = fopen("product.dat", "ab");
+    FILE *f = fopen("PRODUCTS.dat", "ab");
     if (!f) {
-        printf("Erreur ouverture fichier.\n");
+        printf(RED "[ERREUR] Impossible d'ouvrir PRODUCTS.dat.\n" RESET);
         return;
     }
-
-    fflush(stdin);
-    printf(MAGENTA"\n--- Ajout d'un produit ---\n"RESET);
-    printf("Code : ");
-    scanf("%s", p.code);
-    fflush(stdin);
+    Produit p;
+    do {
+        printf("Code produit (5 caractères alphanumériques): ");
+        scanf("%5s", p.code);
+    } while (!validerCodeProduit(p.code));
 
     printf("Désignation : ");
-    fgets(p.designation, sizeof(p.designation), stdin);
-    p.designation[strcspn(p.designation, "\n")] = 0;
-
-    printf("Catégorie : ");
-    fgets(p.categorie_Produit, sizeof(p.categorie_Produit), stdin);
-    p.categorie_Produit[strcspn(p.categorie_Produit, "\n")] = 0;
-
-    printf("Date de péremption (MM/YYYY) : ");
-    scanf("%s", p.date_peremption);
+    scanf(" %49[^\n]", p.designation);
 
     printf("Quantité : ");
     scanf("%d", &p.quantite);
 
-    printf("Prix unitaire : ");
+    printf("Prix : ");
     scanf("%f", &p.prix);
+
+    printf("Catégorie : ");
+    scanf(" %29[^\n]", p.categorie_Produit);
+
+    do {
+        printf("Date péremption (AAAA-MM-JJ) : ");
+        scanf("%10s", p.date_peremption);
+    } while (!validerDate(p.date_peremption));
 
     fwrite(&p, sizeof(Produit), 1, f);
     fclose(f);
 
-    printf(GREEN "✅Produit ajouté avec succès.\n"RESET);
+    printf(GREEN "[✓] Produit ajouté avec succès.\n" RESET);
 }
 
 void afficherProduits() {
-    Produit p;
-    FILE *f = fopen("product.dat", "rb");
+    FILE *f = fopen("PRODUCTS.dat", "rb");
     if (!f) {
-        printf("Erreur ouverture fichier.\n");
+        printf(RED "[ERREUR] Impossible d'ouvrir PRODUCTS.dat.\n" RESET);
         return;
     }
-
-    printf(MAGENTA"\n=== LISTE DES PRODUITS ===\n"RESET);
+    Produit p;
+    printf(BLUE "\n=== Liste des Produits ===\n" RESET);
     while (fread(&p, sizeof(Produit), 1, f)) {
-        printf("Code : %s\n", p.code);
-        printf("Désignation : %s\n", p.designation);
-        printf("Catégorie : %s\n", p.categorie_Produit);
-        printf("Date de péremption : %s\n", p.date_peremption);
-        printf("Quantité : %d\n", p.quantite);
-        printf("Prix : %.2f XOF\n", p.prix);
-        printf("-------------------------------\n");
+        printf("Code: %s | Désignation: %s | Qté: %d | Prix: %.2f | Catégorie: %s | Péremption: %s\n",
+               p.code, p.designation, p.quantite, p.prix, p.categorie_Produit, p.date_peremption);
     }
-
     fclose(f);
+}
+
+Produit* rechercherProduitParCode(const char *code) {
+    static Produit p;
+    FILE *f = fopen("PRODUCTS.dat", "rb");
+    if (!f) return NULL;
+    while (fread(&p, sizeof(Produit), 1, f)) {
+        if (strcmp(p.code, code) == 0) {
+            fclose(f);
+            return &p;
+        }
+    }
+    fclose(f);
+    return NULL;
 }
 
 void modifierProduit() {
-    char code[10];
-    int trouve = 0;
-    Produit p;
-
-    printf(MAGENTA"\n--- Modifier un produit ---\n"RESET);
-    printf("Code du produit à modifier : ");
-    scanf("%s", code);
-
-    FILE *f = fopen("product.dat", "rb+");
+    FILE *f = fopen("PRODUCTS.dat", "rb+");
     if (!f) {
-        printf("Erreur ouverture fichier.\n");
+        printf(RED "[ERREUR] Impossible d'ouvrir PRODUCTS.dat.\n" RESET);
         return;
     }
+    char code[6];
+    printf("Code du produit à modifier : ");
+    scanf("%5s", code);
 
+    Produit p;
+    int found = 0;
     while (fread(&p, sizeof(Produit), 1, f)) {
         if (strcmp(p.code, code) == 0) {
-            printf("➤ Nouveau prix : ");
-            scanf("%f", &p.prix);
-            printf("➤ Nouvelle quantité : ");
-            scanf("%d", &p.quantite);
-            printf("➤ Nouvelle date de péremption : ");
-            scanf("%s", p.date_peremption);
-            printf("➤ Nouvelle categorie: ");
-            scanf("%s", p.categorie_Produit);
-             printf("➤ Nouveau code: ");
-            scanf("%s", p.code);
-            printf("➤ Nouvelle designation: ");
-            scanf("%s", p.designation);
+            found = 1;
             fseek(f, -sizeof(Produit), SEEK_CUR);
+
+            printf("Nouvelle désignation : ");
+            scanf(" %49[^\n]", p.designation);
+
+            printf("Nouvelle quantité : ");
+            scanf("%d", &p.quantite);
+
+            printf("Nouveau prix : ");
+            scanf("%f", &p.prix);
+
+            printf("Nouvelle catégorie : ");
+            scanf(" %29[^\n]", p.categorie_Produit);
+
+            do {
+                printf("Nouvelle date péremption (AAAA-MM-JJ) : ");
+                scanf("%10s", p.date_peremption);
+            } while (!validerDate(p.date_peremption));
+
             fwrite(&p, sizeof(Produit), 1, f);
-            trouve = 1;
+            printf(GREEN "[✓] Produit modifié.\n" RESET);
             break;
         }
     }
-
+    if (!found) printf(RED "[ERREUR] Produit non trouvé.\n" RESET);
     fclose(f);
-
-    if (trouve)
-        printf(GREEN "✅ Produit modifié avec succès.\n" RESET);
-    else
-        printf(RED "❌ Produit non trouvé.\n" RESET);
 }
 
 void supprimerProduit() {
-    char code[10];
-    Produit p;
-    int trouve = 0;
-
-    printf(MAGENTA "\n--- Supprimer un produit ---\n"RESET);
-    printf("Code du produit à supprimer : ");
-    scanf("%s", code);
-
-    FILE *f = fopen("product.dat", "rb");
-    FILE *tmp = fopen("temp.dat", "wb");
-
+    FILE *f = fopen("PRODUCTS.dat", "rb");
+    FILE *tmp = fopen("TEMP.dat", "wb");
     if (!f || !tmp) {
-        printf("Erreur fichiers.\n");
+        printf(RED "[ERREUR] Impossible d'ouvrir fichier.\n" RESET);
+        if(f) fclose(f);
+        if(tmp) fclose(tmp);
         return;
     }
+    char code[6];
+    printf("Code du produit à supprimer : ");
+    scanf("%5s", code);
 
+    Produit p;
+    int found = 0;
     while (fread(&p, sizeof(Produit), 1, f)) {
         if (strcmp(p.code, code) != 0) {
             fwrite(&p, sizeof(Produit), 1, tmp);
         } else {
-            trouve = 1;
+            found = 1;
         }
     }
-
     fclose(f);
     fclose(tmp);
 
-    remove("product.dat");
-    rename("temp.dat", "product.dat");
+    remove("PRODUCTS.dat");
+    rename("TEMP.dat", "PRODUCTS.dat");
 
-    if (trouve)
-        printf( GREEN"✅ Produit supprimé avec succès.\n" RESET);
-    else
-        printf( RED "❌ Produit non trouvé.\n" RESET);
+    if (found) printf(GREEN "[✓] Produit supprimé.\n" RESET);
+    else printf(RED "[ERREUR] Produit non trouvé.\n" RESET);
 }
 
 void verification_stock() {
-    char designation[50];
-    int qteDemandee;
-    int trouve = 0;
-    Produit p;
-
-    FILE *f = fopen("product.dat", "rb");
+    FILE *f = fopen("PRODUCTS.dat", "rb");
     if (!f) {
-        printf("Erreur ouverture fichier.\n");
+        printf(RED "[ERREUR] Impossible d'ouvrir PRODUCTS.dat.\n" RESET);
         return;
     }
-
-    fflush(stdin);
-    printf( MAGENTA"\n--- Vérification du stock ---\n"RESET);
-    printf("Désignation du produit : ");
-    fgets(designation, sizeof(designation), stdin);
-    designation[strcspn(designation, "\n")] = 0;
-
-    printf("Quantité voulue : ");
-    scanf("%d", &qteDemandee);
-
+    Produit p;
+    int seuil = 5;
+    printf(YELLOW "\n=== Vérification du stock (seuil %d) ===\n" RESET, seuil);
     while (fread(&p, sizeof(Produit), 1, f)) {
-        if (strcmp(p.designation, designation) == 0) {
-            trouve = 1;
-            if (p.quantite >= qteDemandee) {
-                printf(GREEN "✅ Stock suffisant (%d disponibles).\n"RESET , p.quantite);
-            } else {
-                printf(RED "⚠️ Stock insuffisant (seulement %d en stock).\n"RESET, p.quantite);
-            }
-            break;
+        if (p.quantite < seuil) {
+            printf(RED "Alerte: Stock faible pour %s (%s) - Qté: %d\n" RESET, p.designation, p.code, p.quantite);
         }
     }
-
-    if (!trouve) {
-        printf( RED "❌ Produit non trouvé.\n");
-    }
-
     fclose(f);
 }
 
+// ===== GESTION CATEGORIES =====
+void ajouterCategorie() {
+    FILE *f = fopen("CATEGORIES.dat", "ab");
+    Categorie c;
+    printf("\nID catégorie : "); scanf("%d", &c.id);
+    printf("Libellé : "); scanf("%s", c.libelle);
+    fwrite(&c, sizeof(Categorie), 1, f);
+    fclose(f);
+    printf("Catégorie ajoutée.\n");
+}
 
-=======
->>>>>>> f56135b11b1caa95f49a5faafca0ce56c2312c3c
->>>>>>> 9ed36685a89b46fa6444100bafdb869af933b4b9
+void afficherCategories() {
+    FILE *f = fopen("CATEGORIES.dat", "rb");
+    Categorie c;
+    printf("\n=== Liste des catégories ===\n");
+    while (fread(&c, sizeof(Categorie), 1, f)) {
+        printf("ID: %d | Libellé: %s\n", c.id, c.libelle);
+    }
+    fclose(f);
+}
+
+void modifierCategorie() {
+    FILE *f = fopen("CATEGORIES.dat", "rb+");
+    Categorie c;
+    int id, found = 0;
+    printf("\nID catégorie à modifier : "); scanf("%d", &id);
+    while (fread(&c, sizeof(Categorie), 1, f)) {
+        if (c.id == id) {
+            fseek(f, -sizeof(Categorie), SEEK_CUR);
+            printf("Nouveau libellé : "); scanf("%s", c.libelle);
+            fwrite(&c, sizeof(Categorie), 1, f);
+            found = 1;
+            break;
+        }
+    }
+    fclose(f);
+    if (!found) printf("Catégorie non trouvée.\n");
+}
+
+void supprimerCategorie() {
+    FILE *f = fopen("CATEGORIES.dat", "rb"), *tmp = fopen("TMP.dat", "wb");
+    Categorie c;
+    int id, found = 0;
+    printf("\nID à supprimer : "); scanf("%d", &id);
+    while (fread(&c, sizeof(Categorie), 1, f)) {
+        if (c.id != id) fwrite(&c, sizeof(Categorie), 1, tmp);
+        else found = 1;
+    }
+    fclose(f); fclose(tmp);
+    remove("CATEGORIES.dat");
+    rename("TMP.dat", "CATEGORIES.dat");
+    if (found) printf("Catégorie supprimée.\n");
+    else printf("Catégorie non trouvée.\n");
+}
+
+
+// ===== UTILISATEURS =====
+
+void ajouterUtilisateur() {
+    Utilisateur u;
+    printf("\n=== Ajouter un utilisateur ===\n");
+    printf("Login : ");
+    scanf("%s", u.login);
+    printf("Mot de passe : ");
+    scanf("%s", u.password);
+    printf("Nom : ");
+    scanf("%s", u.nom);
+    printf("Prénom : ");
+    scanf("%s", u.prenom);
+    printf("Téléphone : ");
+    scanf("%s", u.telephone);
+
+    int choix;
+    do {
+        printf("Rôle (1 = ADMIN, 2 = PHARMACIEN) : ");
+        scanf("%d", &choix);
+    } while (choix != 1 && choix != 2);
+    u.role = (choix == 1) ? ADMIN : PHARMACIEN;
+    u.actif = 1;
+
+    FILE *f = fopen("USERS.dat", "ab");
+    if (f == NULL) {
+        printf("Erreur d'ouverture du fichier USERS.dat\n");
+        return;
+    }
+
+    fwrite(&u, sizeof(Utilisateur), 1, f);
+    fclose(f);
+    printf("Utilisateur ajouté avec succès !\n");
+
+}
+void creerPharmacien() {
+    Utilisateur u;
+
+    printf("\n=== Création d'un compte pharmacien ===\n");
+
+    printf("Nom complet : ");
+    getchar(); // nettoyage du buffer
+    fgets(u.nom, sizeof(u.nom), stdin);
+    u.nom[strcspn(u.nom, "\n")] = '\0'; // enlever le \n
+
+    printf("Login : ");
+    scanf("%s", u.login);
+
+    strcpy(u.password, "pharma123"); // mot de passe par défaut
+    u.role = PHARMACIEN;
+    u.actif = 1;
+
+    FILE *f = fopen("USERS.dat", "ab");
+    if (f == NULL) {
+        printf("Erreur d'ouverture du fichier USERS.dat\n");
+        return;
+    }
+
+    fwrite(&u, sizeof(Utilisateur), 1, f);
+    fclose(f);
+
+    printf("\033[0;32mPharmacien créé avec succès\033[0m (mot de passe = pharma123).\n");
+}
+
+
+void afficherUtilisateurs() {
+    printf(BLUE "\n=== Liste des utilisateurs ===\n" RESET);
+    for (int i = 0; i < nbUtilisateurs; i++) {
+        printf("Login: %s | Nom: %s %s | Téléphone: %s | Rôle: %s | Actif: %s\n",
+            utilisateurs[i].login,
+            utilisateurs[i].prenom,
+            utilisateurs[i].nom,
+            utilisateurs[i].telephone,
+            utilisateurs[i].role == ADMIN ? "Admin" : "Pharmacien",
+            utilisateurs[i].actif ? "Oui" : "Non");
+    }
+}
+
+void chargerUtilisateurs() {
+    FILE *f = fopen("USERS.dat", "rb");
+    if (!f) return;
+    nbUtilisateurs = fread(utilisateurs, sizeof(Utilisateur), MAX_UTILISATEURS, f);
+    fclose(f);
+}
+
+void sauvegarderUtilisateurs() {
+    FILE *f = fopen("USERS.dat", "wb");
+    if (!f) return;
+    fwrite(utilisateurs, sizeof(Utilisateur), nbUtilisateurs, f);
+    fclose(f);
+}
+
+void bloquerUtilisateur() {
+    char login[6];
+    printf("Login à bloquer : "); scanf("%5s", login);
+    for (int i = 0; i < nbUtilisateurs; i++) {
+        if (strcmp(utilisateurs[i].login, login) == 0) {
+            utilisateurs[i].actif = 0;
+            sauvegarderUtilisateurs();
+            printf("[✓] Utilisateur bloqué.\n"); return;
+        }
+    }
+    printf("[!] Utilisateur introuvable.\n");
+}
+
+void debloquerUtilisateur() {
+    char login[6];
+    printf("Login à débloquer : "); scanf("%5s", login);
+    for (int i = 0; i < nbUtilisateurs; i++) {
+        if (strcmp(utilisateurs[i].login, login) == 0) {
+            utilisateurs[i].actif = 1;
+            sauvegarderUtilisateurs();
+            printf("[✓] Utilisateur débloqué.\n"); return;
+        }
+    }
+    printf("[!] Utilisateur introuvable.\n");
+}
+
+void verifierEtCreerAdmin() {
+    FILE *f = fopen("USERS.dat", "rb");
+    Utilisateur user;
+    int adminExiste = 0;
+
+    if (f != NULL) {
+        while (fread(&user, sizeof(Utilisateur), 1, f)) {
+            if (strcmp(user.login, "admin") == 0) {
+                adminExiste = 1;
+                break;
+            }
+        }
+        fclose(f);
+    }
+
+    if (!adminExiste) {
+        f = fopen("USERS.dat", "ab");
+        if (f == NULL) {
+            printf("Erreur lors de la création du fichier d'utilisateurs.\n");
+            exit(1);
+        }
+        Utilisateur admin = {
+          //  .id = 1,
+            .role = ADMIN,
+          //  .statut = 1
+        };
+        strcpy(admin.nom, "Admin");
+        strcpy(admin.login, "admin");
+        strcpy(admin.password, "admin123"); // mot de passe par défaut
+
+        fwrite(&admin, sizeof(Utilisateur), 1, f);
+        fclose(f);
+        printf("Compte administrateur par défaut créé (login: admin, mot de passe: admin123).\n");
+    }
+}
+
+
+void changerMotDePasse(Utilisateur *user) {
+      char ancien[20], nouveau[20];
+      printf("Ancien mot de passe : "); scanf("%19s", ancien);
+      if (strcmp(ancien, user->password) != 0) {
+          printf("[!] Mot de passe incorrect.\n"); return;
+      }
+      printf("Nouveau mot de passe : "); scanf("%19s", nouveau);
+      strcpy(user->password, nouveau);
+      for (int i = 0; i < nbUtilisateurs; i++) {
+          if (strcmp(utilisateurs[i].login, user->login) == 0) {
+              strcpy(utilisateurs[i].password, nouveau);
+              break;
+          }
+      }
+      sauvegarderUtilisateurs();
+      printf("[✓] Mot de passe changé.\n");
+  }
+
+
+int connexionUtilisateur(Utilisateur *user) {
+    char login[30], password[30];
+    printf("\n=== CONNEXION ===\n");
+    printf("Login : ");
+    scanf("%29s", login);
+    printf("Mot de passe : ");
+    scanf("%29s", password);
+
+    FILE *f = fopen("USERS.dat", "rb");
+    if (!f) {
+        printf("Erreur ouverture fichier utilisateurs.\n");
+        return 0;
+    }
+
+    Utilisateur u;
+    while (fread(&u, sizeof(Utilisateur), 1, f)) {
+        if (strcmp(u.login, login) == 0 && strcmp(u.password, password) == 0 && u.actif) {
+            *user = u;
+            fclose(f);
+            return 1;  // connexion réussie
+        }
+    }
+
+    fclose(f);
+    return 0; // connexion échouée
+}
+
+
+// ===== VENTES & FACTURES =====
+
+typedef struct {
+    Produit produits[MAX_PRODUITS_VENTE];
+    int quantites[MAX_PRODUITS_VENTE];
+    int nbProduits;
+    float total;
+    char numVente[15]; // AAAAMMDDHHmmSS
+    char dateHeure[20];
+    char loginPharmacien[6];
+} VenteComplet;
+
+void genererNumVente(char *buffer, size_t size) {
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    snprintf(buffer, size, "%04d%02d%02d%02d%02d%02d",
+        t->tm_year + 1900, t->tm_mon +1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
+}
+
+void venteProduits(Utilisateur userConnecte) {
+    FILE *fprod = fopen("PRODUCTS.dat", "rb+");
+    if (!fprod) {
+        printf(RED "[ERREUR] Impossible d'ouvrir PRODUCTS.dat.\n" RESET);
+        return;
+    }
+
+    VenteComplet vente;
+    vente.nbProduits = 0;
+    vente.total = 0.0f;
+    strcpy(vente.loginPharmacien, userConnecte.login);
+    genererNumVente(vente.numVente, sizeof(vente.numVente));
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    snprintf(vente.dateHeure, sizeof(vente.dateHeure), "%02d-%02d-%04d %02d:%02d:%02d",
+        t->tm_mday, t->tm_mon + 1, t->tm_year + 1900, t->tm_hour, t->tm_min, t->tm_sec);
+
+    int continuer = 1;
+    while (continuer && vente.nbProduits < MAX_PRODUITS_VENTE) {
+        char code[6];
+        printf("Code produit à vendre (5 caractères) : ");
+        scanf("%5s", code);
+
+        // Recherche produit
+        Produit p;
+        int trouve = 0;
+
+        rewind(fprod);
+        while (fread(&p, sizeof(Produit), 1, fprod)) {
+            if (strcmp(p.code, code) == 0) {
+                trouve = 1;
+                if (p.quantite <= 0) {
+                    printf(RED "Stock insuffisant pour ce produit.\n" RESET);
+                    break;
+                }
+
+                int qte;
+                printf("Quantité à vendre : ");
+                scanf("%d", &qte);
+                if (qte <= 0 || qte > p.quantite) {
+                    printf(RED "Quantité invalide ou insuffisante.\n" RESET);
+                    break;
+                }
+
+                // Ajouter à la vente
+                vente.produits[vente.nbProduits] = p;
+                vente.quantites[vente.nbProduits] = qte;
+                vente.nbProduits++;
+                vente.total += p.prix * qte;
+
+                // Mettre à jour stock
+                p.quantite -= qte;
+                fseek(fprod, -sizeof(Produit), SEEK_CUR);
+                fwrite(&p, sizeof(Produit), 1, fprod);
+                fflush(fprod);
+
+                printf(GREEN "[✓] Produit ajouté à la vente.\n" RESET);
+                break;
+            }
+        }
+        if (!trouve) printf(RED "Produit non trouvé.\n" RESET);
+
+        // Continuer ?
+        char rep;
+        printf("Ajouter un autre produit ? (O/N) : ");
+        scanf(" %c", &rep);
+        if (rep != 'O' && rep != 'o') continuer = 0;
+    }
+    fclose(fprod);
+
+    // Générer facture
+    creerDossierBills();
+    char nomFichier[100];
+    snprintf(nomFichier, sizeof(nomFichier), "BILLS/RECU_%s_%s.txt", vente.numVente, vente.loginPharmacien);
+
+    FILE *facture = fopen(nomFichier, "w");
+    if (!facture) {
+        printf(RED "[ERREUR] Impossible de créer la facture.\n" RESET);
+        return;
+    }
+
+    fprintf(facture, "════════════════════════════════════════════\n");
+    fprintf(facture, "           PHARMACIE SUNUPHARMA              \n");
+    fprintf(facture, "════════════════════════════════════════════\n");
+    fprintf(facture, "Numero Facture : %s\n", vente.numVente);
+    fprintf(facture, "Date           : %s\n", vente.dateHeure);
+    fprintf(facture, "Pharmacien     : %s\n", vente.loginPharmacien);
+    fprintf(facture, "--------------------------------------------\n");
+    fprintf(facture, " Code   | Produit           | Qte | Total    \n");
+    fprintf(facture, "--------------------------------------------\n");
+    for (int i = 0; i < vente.nbProduits; i++) {
+        float totalProduit = vente.produits[i].prix * vente.quantites[i];
+        fprintf(facture, " %-6s | %-17s | %-3d | %-8.2f\n",
+            vente.produits[i].code,
+            vente.produits[i].designation,
+            vente.quantites[i],
+            totalProduit);
+    }
+    fprintf(facture, "--------------------------------------------\n");
+    fprintf(facture, "TOTAL A PAYER : %.2f FCFA\n", vente.total);
+    fprintf(facture, "════════════════════════════════════════════\n");
+
+    fclose(facture);
+
+    printf(GREEN "[✓] Vente enregistrée et facture generee : %s\n" RESET, nomFichier);
+}
+
+// Fonction état journalier : lire les factures du jour, compter total ventes et produits vendus
+void etatJournalier(const char *date) {
+   // DIR *rep;
+    struct dirent *entry;
+    struct dirent *rep;
+
+    FILE *f;
+    char path[100];
+    char ligne[200];
+    char today[11];
+    float totalJour = 0.0;
+    int totalProduits = 0, totalFactures = 0;
+
+    // Obtenir la date du jour au format AAAA-MM-JJ
+    time_t t = time(NULL);
+    struct tm *tm = localtime(&t);
+    strftime(today, sizeof(today), "%Y-%m-%d", tm);
+
+    rep = opendir("BILLS");
+    if (!rep) {
+        perror("Erreur d'ouverture du dossier BILLS");
+        return;
+    }
+
+    while ((entry = readdir(rep)) != NULL) {
+        // On ne garde que les fichiers FACTURE_*.txt
+        if (strncmp(entry->d_name, "FACTURE_", 8) == 0 && strstr(entry->d_name, ".txt")) {
+            // Construit le chemin complet
+            snprintf(path, sizeof(path), "BILLS/%s", entry->d_name);
+
+            f = fopen(path, "r");
+            if (!f) continue;
+
+            char dateFacture[11] = "";
+            float totalFacture = 0.0;
+            int produitsFacture = 0;
+
+            // Lire le fichier ligne par ligne
+            while (fgets(ligne, sizeof(ligne), f)) {
+                // Trouver la ligne contenant "Date :"
+                if (strncmp(ligne, "Date :", 6) == 0) {
+                    sscanf(ligne, "Date : %10s", dateFacture);
+                }
+
+                // Trouver la ligne contenant "TOTAL A PAYER"
+                if (strstr(ligne, "TOTAL A PAYER") != NULL) {
+                    sscanf(ligne, "TOTAL A PAYER : %f", &totalFacture);
+                }
+
+                // Compter les lignes contenant un produit (début par espace + code)
+                if (ligne[0] == ' ' && strlen(ligne) > 20 && isalnum(ligne[1])) {
+                    produitsFacture++;
+                }
+            }
+
+            fclose(f);
+
+            // Si la facture est d'aujourd'hui, on l'inclut dans le bilan
+            if (strcmp(today, dateFacture) == 0) {
+                totalFactures++;
+                totalProduits += produitsFacture;
+                totalJour += totalFacture;
+            }
+        }
+    }
+
+    closedir(rep);
+
+    printf(GREEN "\n===== ETAT JOURNALIER : %s =====\n" RESET, today);
+    printf("Nombre de factures   : %d\n", totalFactures);
+    printf("Produits vendus      : %d\n", totalProduits);
+    printf("Montant total du jour: %.2f FCFA\n", totalJour);
+}
+
+
+
 

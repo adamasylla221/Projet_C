@@ -1,22 +1,26 @@
 # depslib dependency file v1.0
-<<<<<<< HEAD
-1751999264 source:c:\users\hp\onedrive\documents\exo langage c\sunupharma\sunupharma\main.c
+140709921609402 <<<<<<< HEAD
+
+1753000098 source:c:\users\hp\onedrive\documents\exo langage c\sunupharma\sunupharma\main.c
 	<stdio.h>
 	<stdlib.h>
 	<string.h>
+	"pharmacie.h"
+
+1753000099 source:c:\users\hp\onedrive\documents\exo langage c\sunupharma\sunupharma\pharmacie.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<time.h>
 	<sys/stat.h>
-	<sys/types.h>
+	<direct.h>
 	"pharmacie.h"
+	<dirent.h>
+	<ctype.h>
 
-1751999726 source:c:\users\hp\onedrive\documents\exo langage c\sunupharma\sunupharma\pharmacie.c
+1753000099 c:\users\hp\onedrive\documents\exo langage c\sunupharma\sunupharma\pharmacie.h
 	<stdio.h>
-	<string.h>
-	"pharmacie.h"
-	<stdlib.h>
-	"time.h"
 
-1751996494 c:\users\hp\onedrive\documents\exo langage c\sunupharma\sunupharma\pharmacie.h
-=======
 1752411690 source:c:\users\dell\desktop\l1 gl cours\langage c l1\sunupharma-main\main.c
 	<stdio.h>
 	<stdlib.h>
@@ -30,5 +34,28 @@
 	<string.h>
 
 1752410592 c:\users\dell\desktop\l1 gl cours\langage c l1\sunupharma-main\pharmacie.h
->>>>>>> 9ed36685a89b46fa6444100bafdb869af933b4b9
+
+1752410592 36685a89b46fa6444100bafdb869af933b4b9
+
+1752776764 source:c:\users\hp\onedrive\documents\exo langage c\sunupharma\sunupharma\untitled1.c
+
+1753000098 source:c:\users\hp\onedrive\desktop\sunupharma\main.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"pharmacie.h"
+
+1753000099 c:\users\hp\onedrive\desktop\sunupharma\pharmacie.h
+	<stdio.h>
+
+1753000099 source:c:\users\hp\onedrive\desktop\sunupharma\pharmacie.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<time.h>
+	<sys/stat.h>
+	<direct.h>
+	"pharmacie.h"
+	<dirent.h>
+	<ctype.h>
 
