@@ -1,0 +1,74 @@
+# depslib dependency file v1.0
+140710687971069 <<<<<<< HEAD
+
+1752324929 source:c:\users\mhd sn\documents\cours isi\langage c\projects\sunupharma-main\main.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"pharmacie.h"
+
+1752764858 source:c:\users\mhd sn\documents\cours isi\langage c\projects\sunupharma-main\utilisateur.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"pharmacie.h"
+
+1752775128 c:\users\mhd sn\documents\cours isi\langage c\projects\sunupharma-main\pharmacie.h
+
+1752764810 source:c:\users\mhd sn\documents\cours isi\langage c\projects\sunupharma-main\connexionutilisateur.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"pharmacie.h"
+
+1752766359 source:c:\users\mhd sn\documents\cours isi\langage c\projects\sunupharma-main\menu.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"pharmacie.h"
+
+1752324678 source:c:\users\mhd sn\documents\cours isi\langage c\projects\sunupharma-main\bloc_debloc.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	"pharmacie.h"
+
+1752324678 .h"
+
+1752324678 D
+
+1751999264 source:c:\users\hp\onedrive\documents\exo langage c\sunupharma\sunupharma\main.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<sys/stat.h>
+	<sys/types.h>
+	"pharmacie.h"
+
+1751999726 source:c:\users\hp\onedrive\documents\exo langage c\sunupharma\sunupharma\pharmacie.c
+	<stdio.h>
+	<string.h>
+	"pharmacie.h"
+	<stdlib.h>
+	"time.h"
+
+1751996494 c:\users\hp\onedrive\documents\exo langage c\sunupharma\sunupharma\pharmacie.h
+
+1752411690 source:c:\users\dell\desktop\l1 gl cours\langage c l1\sunupharma-main\main.c
+	<stdio.h>
+	<stdlib.h>
+	<stdio.h>
+	<windows.h>
+	"pharmacie.h"
+
+1752416229 source:c:\users\dell\desktop\l1 gl cours\langage c l1\sunupharma-main\pharmacie.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+
+1752410592 c:\users\dell\desktop\l1 gl cours\langage c l1\sunupharma-main\pharmacie.h
+
+1752410592 36685a89b46fa6444100bafdb869af933b4b9
+
+1752410592 99a739c63b652d77124ccfcbc509a52472b2e
+
