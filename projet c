@@ -233,3 +233,488 @@ void supprimerCategorie() {
     else printf("Catégorie non trouvée.\n");
 }
 
+ // ===== VENTES & FACTURES =====
+
+    typedef struct {
+        Produit produits[MAX_PRODUITS_VENTE];
+        int quantites[MAX_PRODUITS_VENTE];
+        int nbProduits;
+        float total;
+        char numVente[15]; // AAAAMMDDHHmmSS
+        char dateHeure[20];
+        char loginPharmacien[6];
+    } VenteComplet;
+
+    void genererNumVente(char *buffer, size_t size) {
+        time_t now = time(NULL);
+        struct tm *t = localtime(&now);
+        snprintf(buffer, size, "%04d%02d%02d%02d%02d%02d",
+            t->tm_year + 1900, t->tm_mon +1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
+    }
+
+    void venteProduits(Utilisateur userConnecte) {
+        FILE *fprod = fopen("PRODUCTS.dat", "rb+");
+        if (!fprod) {
+            printf(RED "[ERREUR] Impossible d'ouvrir PRODUCTS.dat.\n" RESET);
+            return;
+        }
+
+        VenteComplet vente;
+        vente.nbProduits = 0;
+        vente.total = 0.0f;
+        strcpy(vente.loginPharmacien, userConnecte.login);
+        genererNumVente(vente.numVente, sizeof(vente.numVente));
+        time_t now = time(NULL);
+        struct tm *t = localtime(&now);
+        strftime(vente.dateHeure, sizeof(vente.dateHeure), "%Y-%m-%d %H:%M:%S", t);
+
+
+        int continuer = 1;
+        while (continuer && vente.nbProduits < MAX_PRODUITS_VENTE) {
+            char code[6];
+            printf("Code produit à vendre (5 caractères) : ");
+            scanf("%5s", code);
+
+            // Recherche produit
+            Produit p;
+            int trouve = 0;
+
+            rewind(fprod);
+            while (fread(&p, sizeof(Produit), 1, fprod)) {
+                if (strcmp(p.code, code) == 0) {
+                    trouve = 1;
+                    if (p.quantite <= 0) {
+                        printf(RED "Stock insuffisant pour ce produit.\n" RESET);
+                        break;
+                    }
+
+                    int qte;
+                    printf("Quantite a vendre : ");
+                    scanf("%d", &qte);
+                    if (qte <= 0 || qte > p.quantite) {
+                        printf(RED "Quantite invalide ou insuffisante.\n" RESET);
+                        break;
+                    }
+
+                    // Ajouter à la vente
+                    vente.produits[vente.nbProduits] = p;
+                    vente.quantites[vente.nbProduits] = qte;
+                    vente.nbProduits++;
+                    vente.total += p.prix * qte;
+
+                    // Mettre à jour stock
+                    p.quantite -= qte;
+                    fseek(fprod, -sizeof(Produit), SEEK_CUR);
+                    fwrite(&p, sizeof(Produit), 1, fprod);
+                    fflush(fprod);
+
+                    printf(GREEN "[✓] Produit ajoute a la vente.\n" RESET);
+                    break;
+                }
+            }
+            if (!trouve) printf(RED "Produit non trouve.\n" RESET);
+
+            // Continuer ?
+            char rep;
+            printf("Ajouter un autre produit ? (O/N) : ");
+            scanf(" %c", &rep);
+            if (rep != 'O' && rep != 'o') continuer = 0;
+        }
+        fclose(fprod);
+
+        // Générer facture
+        creerDossierBills();
+        char nomFichier[100];
+        snprintf(nomFichier, sizeof(nomFichier), "BILLS/RECU_%s_%s.txt", vente.numVente, vente.loginPharmacien);
+
+        FILE *facture = fopen(nomFichier, "w");
+        if (!facture) {
+            printf(RED "[ERREUR] Impossible de créer la facture.\n" RESET);
+            return;
+        }
+
+        fprintf(facture, "════════════════════════════════════════════\n");
+        fprintf(facture, "           PHARMACIE SUNUPHARMA              \n");
+        fprintf(facture, "════════════════════════════════════════════\n");
+        fprintf(facture, "Numero Facture : %s\n", vente.numVente);
+        fprintf(facture, "Date           : %s\n", vente.dateHeure);
+        fprintf(facture, "Pharmacien     : %s\n", vente.loginPharmacien);
+        fprintf(facture, "--------------------------------------------\n");
+        fprintf(facture, " Code   | Produit           | Qte | Total    \n");
+        fprintf(facture, "--------------------------------------------\n");
+        for (int i = 0; i < vente.nbProduits; i++) {
+            float totalProduit = vente.produits[i].prix * vente.quantites[i];
+            fprintf(facture, " %-6s | %-17s | %-3d | %-8.2f\n",
+                vente.produits[i].code,
+                vente.produits[i].designation,
+                vente.quantites[i],
+                totalProduit);
+        }
+        fprintf(facture, "--------------------------------------------\n");
+        fprintf(facture, "TOTAL A PAYER : %.2f FCFA\n", vente.total);
+        fprintf(facture, "════════════════════════════════════════════\n");
+
+        fclose(facture);
+
+        printf(GREEN "[✓] Vente enregistrée et facture generee : %s\n" RESET, nomFichier);
+    }
+
+    // Fonction état journalier : lire les factures du jour, compter total ventes et produits vendus
+    void etatJournalier(const char *date) {
+       // DIR *rep;
+        struct dirent *entry;
+        struct dirent *rep;
+
+        FILE *f;
+        char path[100];
+        char ligne[200];
+        char today[11];
+        float totalJour = 0.0;
+        int totalProduits = 0, totalFactures = 0;
+
+        // Obtenir la date du jour au format AAAA-MM-JJ
+        time_t t = time(NULL);
+        struct tm *tm = localtime(&t);
+        strftime(today, sizeof(today), "%Y-%m-%d", tm);
+
+        rep = opendir("BILLS");
+        if (!rep) {
+            perror("Erreur d'ouverture du dossier BILLS");
+            return;
+        }
+
+        while ((entry = readdir(rep)) != NULL) {
+            // On ne garde que les fichiers FACTURE_*.txt
+           if (strncmp(entry->d_name, "RECU_", 5) == 0 && strstr(entry->d_name, ".txt")) {
+                // Construit le chemin complet
+                snprintf(path, sizeof(path), "BILLS/%s", entry->d_name);
+
+                f = fopen(path, "r");
+                if (!f) continue;
+
+                char dateFacture[11] = "";
+                float totalFacture = 0.0;
+                int produitsFacture = 0;
+
+                while (fgets(ligne, sizeof(ligne), f)) {
+        // Extraction date AAAA-MM-JJ
+                      if (strncmp(ligne, "Date", 4) == 0) {
+                       char *ptr = strchr(ligne, ':');
+             if (ptr) {
+                  ptr++;
+                   while (*ptr == ' ') ptr++;
+                    strncpy(dateFacture, ptr, 10);
+                     dateFacture[10] = '\0';
+            }
+        }
+
+        // Extraction total
+        if (strstr(ligne, "TOTAL A PAYER") != NULL) {
+            sscanf(ligne, "TOTAL A PAYER : %f", &totalFacture);
+        }
+
+        // Comptage produits (à ajuster selon format facture)
+        if (ligne[0] == ' ' && strlen(ligne) > 20 && isalnum(ligne[1])) {
+            produitsFacture++;
+        }
+    }
+
+
+                fclose(f);
+
+                // Si la facture est d'aujourd'hui, on l'inclut dans le bilan
+                if (strcmp(today, dateFacture) == 0) {
+                    totalFactures++;
+                    totalProduits += produitsFacture;
+                    totalJour += totalFacture;
+                }
+            }
+        }
+
+        closedir(rep);
+
+        printf(GREEN "\n===== ETAT JOURNALIER : %s =====\n" RESET, today);
+        printf("+-------------------------+------------------+\n");
+        printf("| %-23s | %-16s |\n", "DESCRIPTION", "VALEUR");
+        printf("+-------------------------+------------------+\n");
+        printf("| %-23s | %-16d |\n", "Nombre de factures", totalFactures);
+        printf("| %-23s | %-16d |\n", "Produits vendus", totalProduits);
+        printf("| %-23s | %-15.2f FCFA |\n", "Montant total du jour", totalJour);
+        printf("+-------------------------+------------------+\n");
+
+
+    }
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "pharmacie.h"
+
+#define CLEAR_SCREEN() system("cls||clear")
+#define RESET   "\033[0m"
+#define RED     "\033[1;31m"
+#define GREEN   "\033[1;32m"
+#define YELLOW  "\033[1;33m"
+#define BLUE    "\033[1;34m"
+#define CYAN    "\033[1;36m"
+#define MAGENTA "\033[1;35m"
+
+void changerMotDePasse(Utilisateur *user);
+void initialiserAdmin();
+void menuAdmin(Utilisateur user);
+void menuPharmacien(Utilisateur user);
+
+void initialiserAdmin() {
+    // POUR TESTS UNIQUEMENT
+   // remove("USERS.dat");
+
+    FILE *f = fopen("USERS.dat", "rb");
+    int existe = 0;
+    Utilisateur u;
+
+    if (f != NULL) {
+        while (fread(&u, sizeof(Utilisateur), 1, f)) {
+            if (u.role == ADMIN) {
+                existe = 1;
+                break;
+            }
+        }
+        fclose(f);
+    }
+
+    if (!existe) {
+        printf(YELLOW "Aucun administrateur detecte.\n" RESET);
+        Utilisateur Admin;
+        strcpy(Admin.login, "ADMIN");
+        strcpy(Admin.password, "admin123");
+        Admin.role = ADMIN;
+        Admin.actif = 1;
+        strcpy(Admin.nom, "Admin");
+        strcpy(Admin.prenom, "Admin");
+        strcpy(Admin.telephone, "0000000000");
+
+        FILE *fw = fopen("USERS.dat", "ab");
+        fwrite(&Admin, sizeof(Utilisateur), 1, fw);
+        fclose(fw);
+        printf(GREEN "[OK] Compte admin cree : login = ADMIN / mot de passe = admin123\n" RESET);
+    }
+}
+
+int main() {
+    int choixPrincipal;
+    Utilisateur user;
+
+    initialiserAdmin();
+    verifierEtCreerAdmin();
+    chargerUtilisateurs();
+
+    do {
+        CLEAR_SCREEN();
+        printf(BLUE "=======================================\n");
+        printf("         PHARMACIE SUNUPHARMA\n");
+        printf("=======================================\n" RESET);
+        printf(YELLOW "1. Connexion ADMINISTRATEUR\n");
+        printf("2. Connexion PHARMACIEN\n");
+        printf("3. Quitter\n" RESET);
+        printf("Choix : ");
+        scanf("%d", &choixPrincipal);
+        getchar(); // absorber \n
+
+        switch (choixPrincipal) {
+            case 1:
+                if (connexionUtilisateur(&user)) {
+                    if (user.role == ADMIN) {
+                        menuAdmin(user);
+                    } else {
+                        printf(RED "[!] Accès refusé. Ce n'est pas un compte administrateur.\n" RESET);
+                        printf("Appuyez sur une touche pour continuer...");
+                        getchar();
+                    }
+                } else {
+                    printf(RED "[!] Connexion échouée.\n" RESET);
+                    printf("Appuyez sur une touche pour continuer...");
+                    getchar();
+                }
+                break;
+
+            case 2:
+                if (connexionUtilisateur(&user)) {
+                    if (user.role == PHARMACIEN) {
+                        if (strcmp(user.password, "pharma123") == 0) {
+                            printf(RED "\n[!] Mot de passe par défaut détecté. Veuillez le changer.\n" RESET);
+                            changerMotDePasse(&user);
+                            sauvegarderUtilisateurs();
+                        }
+                        menuPharmacien(user);
+                    } else {
+                        printf(RED "[!] Ce n'est pas un compte pharmacien.\n" RESET);
+                        printf("Appuyez sur une touche pour continuer...");
+                        getchar();
+                    }
+                } else {
+                    printf(RED "[!] Connexion échouée.\n" RESET);
+                    printf("Appuyez sur une touche pour continuer...");
+                    getchar();
+                }
+                break;
+
+            case 3:
+                printf(GREEN "Au revoir !\n" RESET);
+                return 0;
+
+            default:
+                printf(RED "[!] Choix invalide.\n" RESET);
+                printf("Appuyez sur une touche pour continuer...");
+                getchar();
+        }
+
+    } while (1);
+
+    return 0;
+}
+
+void menuAdmin(Utilisateur user) {
+    int choix;
+    do {
+        CLEAR_SCREEN();
+        printf(CYAN "================================\n");
+        printf("  MENU ADMINISTRATEUR - %s\n", user.login);
+        printf("================================\n" RESET);
+        printf(YELLOW "1. Gestion des produits\n");
+        printf("2. Gestion des categories\n");
+        printf("3. Gestion des utilisateurs\n");
+        printf("4. Verification des stocks\n");
+        printf("5. Deconnexion\n" RESET);
+        printf("Choix : ");
+        scanf("%d", &choix);
+
+        switch (choix) {
+            case 1: {
+                int souschoix;
+                do {
+                    CLEAR_SCREEN();
+                    printf(BLUE "=== Gestion Produits ===\n" RESET);
+                    printf(YELLOW "1. Ajouter produit\n");
+                    printf("2. Modifier produit\n");
+                    printf("3. Supprimer produit\n");
+                    printf("4. Afficher produits\n");
+                    printf("5. Retour\n" RESET);
+                    printf("Choix : ");
+                    scanf("%d", &souschoix);
+                    switch (souschoix) {
+                        case 1: ajouterProduit(); break;
+                        case 2: modifierProduit(); break;
+                        case 3: supprimerProduit(); break;
+                        case 4: afficherProduits(); break;
+                    }
+                    if (souschoix != 5) {
+                        printf("Appuyez sur une touche pour continuer...");
+                        getchar(); getchar();
+                    }
+                } while (souschoix != 5);
+                break;
+            }
+            case 2: {
+                int souschoix;
+                do {
+                  //  CLEAR_SCREEN();
+                    printf(BLUE "=== Gestion Categories ===\n" RESET);
+                    printf(YELLOW "1. Ajouter categorie\n");
+                    printf("2. Modifier categorie\n");
+                    printf("3. Supprimer categorie\n");
+                    printf("4. Afficher categories\n");
+                    printf("5. Retour\n" RESET);
+                    printf("Choix : ");
+                    scanf("%d", &souschoix);
+                    switch (souschoix) {
+                        case 1: ajouterCategorie(); break;
+                        case 2: modifierCategorie(); break;
+                        case 3: supprimerCategorie(); break;
+                        case 4: afficherCategories(); break;
+                    }
+                    if (souschoix != 5) {
+                        printf("Appuyez sur une touche pour continuer...");
+                        getchar(); getchar();
+                    }
+                } while (souschoix != 5);
+                break;
+            }
+            case 3: {
+                int souschoix;
+                do {
+                  //  CLEAR_SCREEN();
+                    printf(BLUE "=== Gestion Utilisateurs ===\n" RESET);
+                    printf(YELLOW "1. Creer utilisateur\n");
+                    printf("2. Afficher utilisateurs\n");
+                    printf("3. Bloquer utilisateur\n");
+                    printf("4. Debloquer utilisateur\n");
+                    printf("5. Retour\n" RESET);
+                    printf("Choix : ");
+                    scanf("%d", &souschoix);
+                    switch (souschoix) {
+                        case 1: ajouterUtilisateur(); break;
+                        case 2: afficherUtilisateurs(); break;
+                        case 3: bloquerUtilisateur(); break;
+                        case 4: debloquerUtilisateur(); break;
+                    }
+                    if (souschoix != 5) {
+                        printf("Appuyez sur une touche pour continuer...");
+                        getchar(); getchar();
+                    }
+                } while (souschoix != 5);
+                break;
+            }
+            case 4:
+                verification_stock();
+                printf("Appuyez sur une touche pour continuer...");
+                getchar(); getchar();
+                break;
+            case 5:
+                printf(GREEN "Deconnexion...\n" RESET);
+                break;
+            default:
+                printf(RED "Choix invalide.\n" RESET);
+                getchar(); getchar();
+        }
+    } while (choix != 5);
+}
+
+void menuPharmacien(Utilisateur user) {
+    int choix;
+    do {
+       CLEAR_SCREEN();
+        printf(CYAN "================================\n");
+        printf("  MENU PHARMACIEN - %s\n", user.login);
+        printf("================================\n" RESET);
+        printf(YELLOW "1. Vendre un produit\n");
+        printf("2. Consulter le stock\n");
+        printf("3. Etat journalier\n");
+        printf("4. Deconnexion\n" RESET);
+        printf("Choix : ");
+        scanf("%d", &choix);
+
+        switch (choix) {
+            case 1:
+                venteProduits(user);
+                break;
+            case 2:
+                afficherProduits();
+                break;
+            case 3:
+                etatJournalier(NULL);
+                break;
+            case 4:
+                printf(GREEN "Deconnexion...\n" RESET);
+                break;
+            default:
+                printf(RED "Choix invalide.\n" RESET);
+        }
+        if (choix != 4) {
+            printf("Appuyez sur une touche pour continuer...");
+            getchar(); getchar();
+        }
+    } while (choix != 4);
+}
+
+
