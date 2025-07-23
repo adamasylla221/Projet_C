@@ -174,3 +174,62 @@ void afficherFactureParDate();
 void etatJournalier();
 
 #endif
+
+
+
+
+// ===== GESTION CATEGORIES =====
+void ajouterCategorie() {
+    FILE *f = fopen("CATEGORIES.dat", "ab");
+    Categorie c;
+    printf("\nID catégorie : "); scanf("%d", &c.id);
+    printf("Libellé : "); scanf("%s", c.libelle);
+    fwrite(&c, sizeof(Categorie), 1, f);
+    fclose(f);
+    printf("Catégorie ajoutée.\n");
+}
+
+void afficherCategories() {
+    FILE *f = fopen("CATEGORIES.dat", "rb");
+    Categorie c;
+    printf("\n=== Liste des catégories ===\n");
+    while (fread(&c, sizeof(Categorie), 1, f)) {
+        printf("ID: %d | Libellé: %s\n", c.id, c.libelle);
+    }
+    fclose(f);
+}
+
+void modifierCategorie() {
+    FILE *f = fopen("CATEGORIES.dat", "rb+");
+    Categorie c;
+    int id, found = 0;
+    printf("\nID catégorie à modifier : "); scanf("%d", &id);
+    while (fread(&c, sizeof(Categorie), 1, f)) {
+        if (c.id == id) {
+            fseek(f, -sizeof(Categorie), SEEK_CUR);
+            printf("Nouveau libellé : "); scanf("%s", c.libelle);
+            fwrite(&c, sizeof(Categorie), 1, f);
+            found = 1;
+            break;
+        }
+    }
+    fclose(f);
+    if (!found) printf("Catégorie non trouvée.\n");
+}
+
+void supprimerCategorie() {
+    FILE *f = fopen("CATEGORIES.dat", "rb"), *tmp = fopen("TMP.dat", "wb");
+    Categorie c;
+    int id, found = 0;
+    printf("\nID à supprimer : "); scanf("%d", &id);
+    while (fread(&c, sizeof(Categorie), 1, f)) {
+        if (c.id != id) fwrite(&c, sizeof(Categorie), 1, tmp);
+        else found = 1;
+    }
+    fclose(f); fclose(tmp);
+    remove("CATEGORIES.dat");
+    rename("TMP.dat", "CATEGORIES.dat");
+    if (found) printf("Catégorie supprimée.\n");
+    else printf("Catégorie non trouvée.\n");
+}
+
