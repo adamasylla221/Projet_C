@@ -788,3 +788,203 @@ void verification_stock() {
     }
     fclose(f);
 }
+// ===== UTILISATEURS =====
+
+void ajouterUtilisateur() {
+    Utilisateur u;
+    printf("\n=== Ajouter un utilisateur ===\n");
+    printf("Login : ");
+    scanf("%s", u.login);
+    printf("Mot de passe : ");
+    scanf("%s", u.password);
+    printf("Nom : ");
+    scanf("%s", u.nom);
+    printf("Prénom : ");
+    scanf("%s", u.prenom);
+    printf("Téléphone : ");
+    scanf("%s", u.telephone);
+
+    int choix;
+    do {
+        printf("Rôle (1 = ADMIN, 2 = PHARMACIEN) : ");
+        scanf("%d", &choix);
+    } while (choix != 1 && choix != 2);
+    u.role = (choix == 1) ? ADMIN : PHARMACIEN;
+    u.actif = 1;
+
+    FILE *f = fopen("USERS.dat", "ab");
+    if (f == NULL) {
+        printf("Erreur d'ouverture du fichier USERS.dat\n");
+        return;
+    }
+
+    fwrite(&u, sizeof(Utilisateur), 1, f);
+    fclose(f);
+    printf("Utilisateur ajouté avec succès !\n");
+
+}
+void creerPharmacien() {
+    Utilisateur u;
+
+    printf("\n=== Création d'un compte pharmacien ===\n");
+
+    printf("Nom complet : ");
+    getchar(); // nettoyage du buffer
+    fgets(u.nom, sizeof(u.nom), stdin);
+    u.nom[strcspn(u.nom, "\n")] = '\0'; // enlever le \n
+
+    printf("Login : ");
+    scanf("%s", u.login);
+
+    strcpy(u.password, "pharma123"); // mot de passe par défaut
+    u.role = PHARMACIEN;
+    u.actif = 1;
+
+    FILE *f = fopen("USERS.dat", "ab");
+    if (f == NULL) {
+        printf("Erreur d'ouverture du fichier USERS.dat\n");
+        return;
+    }
+
+    fwrite(&u, sizeof(Utilisateur), 1, f);
+    fclose(f);
+
+    printf("\033[0;32mPharmacien créé avec succès\033[0m (mot de passe = pharma123).\n");
+}
+
+
+void afficherUtilisateurs() {
+    printf(BLUE "\n=== Liste des utilisateurs ===\n" RESET);
+    for (int i = 0; i < nbUtilisateurs; i++) {
+        printf("Login: %s | Nom: %s %s | Téléphone: %s | Rôle: %s | Actif: %s\n",
+            utilisateurs[i].login,
+            utilisateurs[i].prenom,
+            utilisateurs[i].nom,
+            utilisateurs[i].telephone,
+            utilisateurs[i].role == ADMIN ? "Admin" : "Pharmacien",
+            utilisateurs[i].actif ? "Oui" : "Non");
+    }
+}
+
+void chargerUtilisateurs() {
+    FILE *f = fopen("USERS.dat", "rb");
+    if (!f) return;
+    nbUtilisateurs = fread(utilisateurs, sizeof(Utilisateur), MAX_UTILISATEURS, f);
+    fclose(f);
+}
+
+void sauvegarderUtilisateurs() {
+    FILE *f = fopen("USERS.dat", "wb");
+    if (!f) return;
+    fwrite(utilisateurs, sizeof(Utilisateur), nbUtilisateurs, f);
+    fclose(f);
+}
+
+void bloquerUtilisateur() {
+    char login[6];
+    printf("Login à bloquer : "); scanf("%5s", login);
+    for (int i = 0; i < nbUtilisateurs; i++) {
+        if (strcmp(utilisateurs[i].login, login) == 0) {
+            utilisateurs[i].actif = 0;
+            sauvegarderUtilisateurs();
+            printf("[✓] Utilisateur bloqué.\n"); return;
+        }
+    }
+    printf("[!] Utilisateur introuvable.\n");
+}
+
+void debloquerUtilisateur() {
+    char login[6];
+    printf("Login à débloquer : "); scanf("%5s", login);
+    for (int i = 0; i < nbUtilisateurs; i++) {
+        if (strcmp(utilisateurs[i].login, login) == 0) {
+            utilisateurs[i].actif = 1;
+            sauvegarderUtilisateurs();
+            printf("[✓] Utilisateur débloqué.\n"); return;
+        }
+    }
+    printf("[!] Utilisateur introuvable.\n");
+}
+
+void verifierEtCreerAdmin() {
+    FILE *f = fopen("USERS.dat", "rb");
+    Utilisateur user;
+    int adminExiste = 0;
+
+    if (f != NULL) {
+        while (fread(&user, sizeof(Utilisateur), 1, f)) {
+            if (strcmp(user.login, "admin") == 0) {
+                adminExiste = 1;
+                break;
+            }
+        }
+        fclose(f);
+    }
+
+    if (!adminExiste) {
+        f = fopen("USERS.dat", "ab");
+        if (f == NULL) {
+            printf("Erreur lors de la création du fichier d'utilisateurs.\n");
+            exit(1);
+        }
+        Utilisateur admin = {
+          //  .id = 1,
+            .role = ADMIN,
+          //  .statut = 1
+        };
+        strcpy(admin.nom, "Admin");
+        strcpy(admin.login, "admin");
+        strcpy(admin.password, "admin123"); // mot de passe par défaut
+
+        fwrite(&admin, sizeof(Utilisateur), 1, f);
+        fclose(f);
+        printf("Compte administrateur par défaut créé (login: admin, mot de passe: admin123).\n");
+    }
+}
+
+
+void changerMotDePasse(Utilisateur *user) {
+      char ancien[20], nouveau[20];
+      printf("Ancien mot de passe : "); scanf("%19s", ancien);
+      if (strcmp(ancien, user->password) != 0) {
+          printf("[!] Mot de passe incorrect.\n"); return;
+      }
+      printf("Nouveau mot de passe : "); scanf("%19s", nouveau);
+      strcpy(user->password, nouveau);
+      for (int i = 0; i < nbUtilisateurs; i++) {
+          if (strcmp(utilisateurs[i].login, user->login) == 0) {
+              strcpy(utilisateurs[i].password, nouveau);
+              break;
+          }
+      }
+      sauvegarderUtilisateurs();
+      printf("[✓] Mot de passe changé.\n");
+  }
+
+
+int connexionUtilisateur(Utilisateur *user) {
+    char login[30], password[30];
+    printf("\n=== CONNEXION ===\n");
+    printf("Login : ");
+    scanf("%29s", login);
+    printf("Mot de passe : ");
+    scanf("%29s", password);
+
+    FILE *f = fopen("USERS.dat", "rb");
+    if (!f) {
+        printf("Erreur ouverture fichier utilisateurs.\n");
+        return 0;
+    }
+
+    Utilisateur u;
+    while (fread(&u, sizeof(Utilisateur), 1, f)) {
+        if (strcmp(u.login, login) == 0 && strcmp(u.password, password) == 0 && u.actif) {
+            *user = u;
+            fclose(f);
+            return 1;  // connexion réussie
+        }
+    }
+
+    fclose(f);
+    return 0; // connexion échouée
+}
