@@ -38,11 +38,22 @@ void afficherProduits() {
         return;
     }
     Produit p;
+
     printf(BLUE "\n=== Liste des Produits ===\n" RESET);
+
+    // Affichage de l'en-tête du tableau
+    printf("+------------+----------------------+-------+-----------+----------------+--------------+\n");
+    printf("| Code       | Designation           | Qté   | Prix      | Categorie      | Peremption   |\n");
+    printf("+------------+----------------------+-------+-----------+----------------+--------------+\n");
+
+    // Lecture et affichage des produits
     while (fread(&p, sizeof(Produit), 1, f)) {
-        printf("Code: %s | Désignation: %s | Qté: %d | Prix: %.2f | Catégorie: %s | Péremption: %s\n",
+        printf("| %-10s | %-20s | %5d | %9.2f | %-14s | %-12s |\n",
                p.code, p.designation, p.quantite, p.prix, p.categorie_Produit, p.date_peremption);
     }
+
+    printf("+------------+----------------------+-------+-----------+----------------+--------------+\n");
+
     fclose(f);
 }
 
