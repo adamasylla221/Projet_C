@@ -717,4 +717,63 @@ void menuPharmacien(Utilisateur user) {
     } while (choix != 4);
 }
 
+Produit* rechercherProduitParCode(const char *code) {
+    static Produit p;
+    FILE *f = fopen("PRODUCTS.dat", "rb");
+    if (!f) return NULL;
+    while (fread(&p, sizeof(Produit), 1, f)) {
+        if (strcmp(p.code, code) == 0) {
+            fclose(f);
+            return &p;
+        }
+    }
+    fclose(f);
+    return NULL;
+}
+void supprimerProduit() {
+    FILE *f = fopen("PRODUCTS.dat", "rb");
+    FILE *tmp = fopen("TEMP.dat", "wb");
+    if (!f || !tmp) {
+        printf(RED "[ERREUR] Impossible d'ouvrir fichier.\n" RESET);
+        if(f) fclose(f);
+        if(tmp) fclose(tmp);
+        return;
+    }
+    char code[6];
+    printf("Code du produit à supprimer : ");
+    scanf("%5s", code);
 
+    Produit p;
+    int found = 0;
+    while (fread(&p, sizeof(Produit), 1, f)) {
+        if (strcmp(p.code, code) != 0) {
+            fwrite(&p, sizeof(Produit), 1, tmp);
+        } else {
+            found = 1;
+        }
+    }
+    fclose(f);
+    fclose(tmp);
+
+    remove("PRODUCTS.dat");
+    rename("TEMP.dat", "PRODUCTS.dat");
+
+    if (found) printf(GREEN "[✓] Produit supprimé.\n" RESET);
+    else printf(RED "[ERREUR] Produit non trouvé.\n" RESET);
+}
+void verification_stock() {
+    FILE *f = fopen("PRODUCTS.dat", "rb");
+    if (!f) {
+        printf(RED "[ERREUR] Impossible d'ouvrir PRODUCTS.dat.\n" RESET);
+        return;
+    }
+    Produit p;
+    int seuil = 5;
+    printf(YELLOW "\n=== Vérification du stock (seuil %d) ===\n" RESET, seuil);
+    while (fread(&p, sizeof(Produit), 1, f)) {
+        if (p.quantite < seuil) {
+            printf(RED "Alerte: Stock faible pour %s (%s) - Qté: %d\n" RESET, p.designation, p.code, p.quantite);
+        }
+    }
+    fclose(f);
+}
