@@ -1,1 +1,176 @@
 
+void ajouterProduit() {
+    FILE *f = fopen("PRODUCTS.dat", "ab");
+    if (!f) {
+        printf(RED "[ERREUR] Impossible d'ouvrir PRODUCTS.dat.\n" RESET);
+        return;
+    }
+    Produit p;
+    do {
+        printf("Code produit (5 caractères alphanumériques): ");
+        scanf("%5s", p.code);
+    } while (!validerCodeProduit(p.code));
+
+    printf("Désignation : ");
+    scanf(" %49[^\n]",p.designation);
+
+    printf("Quantité : ");
+    scanf("%d", &p.quantite);
+
+    printf("Prix : ");
+    scanf("%f", &p.prix);
+
+    printf("Catégorie : ");
+    scanf(" %29[^\n]", p.categorie_Produit);
+
+    do {
+        printf("Date péremption (AAAA-MM-JJ) : ");
+        scanf("%10s", p.date_peremption);
+    } while (!validerDate(p.date_peremption));
+    fwrite(&p, sizeof(Produit), 1, f);
+    fclose(f);
+    printf(GREEN "[✓] Produit ajouté avec succès.\n" RESET);
+}
+void afficherProduits() {
+    FILE *f = fopen("PRODUCTS.dat", "rb");
+    if (!f) {
+        printf(RED "[ERREUR] Impossible d'ouvrir PRODUCTS.dat.\n" RESET);
+        return;
+    }
+    Produit p;
+    printf(BLUE "\n=== Liste des Produits ===\n" RESET);
+    while (fread(&p, sizeof(Produit), 1, f)) {
+        printf("Code: %s | Désignation: %s | Qté: %d | Prix: %.2f | Catégorie: %s | Péremption: %s\n",
+               p.code, p.designation, p.quantite, p.prix, p.categorie_Produit, p.date_peremption);
+    }
+    fclose(f);
+}
+
+void modifierProduit() {
+    FILE *f = fopen("PRODUCTS.dat", "rb+");
+    if (!f) {
+        printf(RED "[ERREUR] Impossible d'ouvrir PRODUCTS.dat.\n" RESET);
+        return;
+    }
+    char code[6];
+    printf("Code du produit à modifier : ");
+    scanf("%5s", code);
+
+    Produit p;
+    int found = 0;
+    while (fread(&p, sizeof(Produit), 1, f)) {
+        if (strcmp(p.code, code) == 0) {
+            found = 1;
+            fseek(f, -sizeof(Produit), SEEK_CUR);
+
+            printf("Nouvelle désignation : ");
+            scanf(" %49[^\n]", p.designation);
+
+            printf("Nouvelle quantité : ");
+            scanf("%d", &p.quantite);
+
+            printf("Nouveau prix : ");
+            scanf("%f", &p.prix);
+
+            printf("Nouvelle catégorie : ");
+            scanf(" %29[^\n]", p.categorie_Produit);
+
+            do {
+                printf("Nouvelle date péremption (AAAA-MM-JJ) : ");
+                scanf("%10s", p.date_peremption);
+            } while (!validerDate(p.date_peremption));
+
+            fwrite(&p, sizeof(Produit), 1, f);
+            printf(GREEN "[✓] Produit modifié.\n" RESET);
+            break;
+        }
+    }
+    if (!found) printf(RED "[ERREUR] Produit non trouvé.\n" RESET);
+    fclose(f);
+}// ===== pharmacie.h (corrigé) =====
+#ifndef PHARMACIE_H
+#define PHARMACIE_H
+
+#include <stdio.h>
+
+// ===== ENUM ROLES =====
+typedef enum {ADMIN, PHARMACIEN} Role;
+
+// ===== STRUCTURES =====
+typedef struct {
+    char code[10];
+    char designation[30];
+    int quantite;
+    float prix;
+    char categorie_Produit[30];
+    char date_peremption[15];
+} Produit;
+
+typedef struct {
+    int id;
+    char libelle[30];
+} Categorie;
+
+typedef struct {
+    char login[30];
+    char password[30];
+    int actif; // 1 = actif, 0 = bloqué
+    Role role;
+    char nom[30];
+    char prenom[30];
+    char telephone[20];
+} Utilisateur;
+
+typedef struct {
+    int idVente;
+    char codeProduit[10];
+    int quantite;
+    float prixTotal;
+    char dateVente[20];
+} Vente;
+
+
+void menuProduits();
+void menuCategories();
+void menuUtilisateurs();
+void menuVentesFactures();
+void venteProduits(Utilisateur user);
+void genererFacture();
+void sauvegarderUtilisateurs();
+
+
+
+// ===== FONCTIONS PRODUITS =====
+void ajouterProduit();
+void afficherProduits();
+void recherchecode();
+void modifierProduit();
+void supprimerProduit();
+void verification_stock();
+
+// ===== FONCTIONS CATEGORIES =====
+void ajouterCategorie();
+void afficherCategories();
+void modifierCategorie();
+void supprimerCategorie();
+
+// ===== FONCTIONS UTILISATEURS =====
+void ajouterUtilisateur();
+void creerPharmacien();
+int connexionUtilisateur(Utilisateur *user);
+void afficherUtilisateurs();
+void bloquerUtilisateur();
+void debloquerUtilisateur();
+void changerMotDePasse(Utilisateur *user);
+
+void menuAdmin(Utilisateur user);
+void menuPharmacien(Utilisateur user);
+void infoUtilisateurConnecte(Utilisateur *user);
+
+// ===== FONCTIONS VENTES ET FACTURES =====
+void enregistrerVente(Utilisateur user);
+void afficherFactures();
+void afficherFactureParDate();
+void etatJournalier();
+
+#endif
